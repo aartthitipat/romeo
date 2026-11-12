@@ -49,9 +49,15 @@ def resolve_model_path(name_or_path: str) -> str:
     import openwakeword
 
     def find() -> Optional[str]:
-        for p in openwakeword.get_pretrained_model_paths():
+        # openWakeWord 0.6 lists .tflite paths by default; Romeo always runs ONNX.
+        try:
+            paths = openwakeword.get_pretrained_model_paths("onnx")
+        except TypeError:  # 0.4 takes no argument
+            paths = openwakeword.get_pretrained_model_paths()
+        for p in paths:
+            onnx = str(Path(p).with_suffix(".onnx"))
             if Path(p).stem.startswith(name_or_path):
-                return p
+                return onnx
         return None
 
     found = find()
