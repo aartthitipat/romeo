@@ -1,5 +1,7 @@
 # Romeo — AI ที่คุมคอม Windows และ iPhone ได้
 
+[![tests](https://github.com/aartthitipat/romeo/actions/workflows/tests.yml/badge.svg)](https://github.com/aartthitipat/romeo/actions/workflows/tests.yml)
+
 Romeo ต่อยอดจาก [OpenJarvis](https://github.com/open-jarvis/OpenJarvis) โดยเพิ่ม **MCP server 2 ตัว**
 ที่ให้ AI มองเห็นและสั่งงานเครื่องได้ แล้วใช้สมองของ OpenJarvis (agent, memory, channels, เสียง)
 คุมทั้งหมด ไม่ต้องแก้โค้ด OpenJarvis เลย — แผนเต็มอยู่ที่ [docs/PLAN.md](docs/PLAN.md)
@@ -29,6 +31,8 @@ Romeo ต่อยอดจาก [OpenJarvis](https://github.com/open-jarvis/Op
 | V1–V4 ปลุกด้วยเสียง "Hey Romeo" (VAD → wake word 2 ด่าน → whisper ยืนยัน → เสียงเจ้าของ) + "Hey Siri, Romeo" | ✅ เขียนแล้ว — ต้องทดสอบกับไมค์จริง ([แผน](docs/VOICE_PLAN.md)) |
 | ฝึกโมเดล `hey_romeo` | ต้องทำเอง ([คู่มือ](models/README.md)) — ระหว่างนี้ใช้ "Hey Jarvis" |
 | auto-routing (เลือก Ollama/Claude ให้เอง) | ✅ สำหรับคำสั่งเสียงและ Siri |
+| หน้าเว็บควบคุม + หน้าต่างลอยแบบ Siri | ✅ (หน้าต่างลอยยังไม่ได้ลองบน Windows จริง) |
+| CI: pytest บน Ubuntu + Windows | ✅ |
 | M7 รันเป็น service ตอนเปิดเครื่อง + ไอคอน tray | ยังไม่ทำ |
 
 ## ติดตั้ง (บน Windows)
@@ -102,6 +106,25 @@ iPhone: ดู [shortcuts/README.md](shortcuts/README.md)
 - พูด **"Hey Romeo หยุด"** = หยุดฉุกเฉิน (ไม่ผ่าน AI) · "หยุดเพลง" ยังเป็นคำสั่งปกติ
 - งานเสี่ยงยังต้องกดอนุญาตบนจอเสมอ เสียงอย่างเดียวไม่พอ
 
+## หน้าจอ Romeo
+
+`romeo listen` จะเปิดสองอย่างให้อัตโนมัติ:
+
+- **หน้าเว็บควบคุม** `http://127.0.0.1:8767` — วงกลมบอกสถานะ (เทา=รอ, ฟ้า=ฟัง, ม่วง=คิด, เขียว=ตอบ, แดง=หยุด),
+  แชทคำสั่ง-คำตอบจากทุกช่องทาง (เสียง / Siri / พิมพ์), ช่องพิมพ์คำสั่ง, ปุ่ม **หยุดฉุกเฉิน**,
+  แท็บ **ประวัติ action** (อนุญาต/ปฏิเสธ/ผู้ใช้อนุมัติ) และสถานะ Windows / iPhone
+- **หน้าต่างลอยมุมขวาล่าง** (Windows) — โผล่ตอนปลุก แสดงคำที่ได้ยินและคำตอบ แล้วหายไปเอง คลิกเพื่อปิด
+
+เปิดเฉพาะหน้าเว็บ (ไม่ใช้ไมค์ พิมพ์สั่งอย่างเดียว):
+```powershell
+romeo ui
+```
+เปิดดูจาก iPhone (ต้องตั้ง `ROMEO_BRIDGE_TOKEN` ก่อน แล้วเปิด `http://<IP คอม>:8767/?token=<token>` ใน Safari):
+```powershell
+romeo listen --ui-host 0.0.0.0
+```
+ปุ่ม "ให้ทำงานต่อ" หลังหยุดฉุกเฉินกดได้จากคอมเท่านั้น · ปิดหน้าเว็บ `--no-ui` · ปิดหน้าต่างลอย `--no-overlay`
+
 ## ความปลอดภัย
 
 Romeo คุมเครื่องได้จริง จึงมีด่านกั้นทุก action (`src/romeo/common/`):
@@ -121,7 +144,8 @@ Romeo คุมเครื่องได้จริง จึงมีด่�
 | `romeo route "<คำขอ>"` | ดูว่าคำขอนี้ควรใช้ local model หรือ Claude |
 | `romeo stop` / `romeo resume` | เปิด/ปิด kill switch |
 | `romeo audit -n 50` | ดู log ล่าสุด |
-| `romeo listen [--no-mic]` | ฟัง "Hey Romeo" + เปิด endpoint ให้ Siri |
+| `romeo listen [--no-mic]` | ฟัง "Hey Romeo" + หน้าเว็บ + หน้าต่างลอย + endpoint ให้ Siri |
+| `romeo ui` | เปิดหน้าเว็บควบคุมอย่างเดียว |
 | `romeo voice enroll` / `romeo voice test` | ลงทะเบียนเสียงเจ้าของ / ดูคะแนนคำปลุกสด |
 | `romeo-windows` / `romeo-iphone` | MCP server (OpenJarvis เรียกเอง; ใช้กับ Claude Desktop ได้ด้วย) |
 

@@ -95,15 +95,36 @@ def _voice_errors(fn):
         return fn()
     except ImportError as exc:
         print(f"✗ missing voice dependency ({exc.name}). Install: uv pip install -e \".[voice]\"")
-    except (OSError, RuntimeError, FileNotFoundError) as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         print(f"✗ {exc}")
     return 1
+
+
+def _ui_options(args: argparse.Namespace):
+    from romeo.voice.app import UiOptions
+
+    return UiOptions(dashboard=not getattr(args, "no_ui", False),
+                     overlay=False if getattr(args, "no_overlay", False) else None,
+                     host=args.ui_host, port=args.ui_port, open_browser=not args.no_browser)
 
 
 def cmd_listen(args: argparse.Namespace) -> int:
     from romeo.voice.app import listen
 
-    return _voice_errors(lambda: listen(no_mic=args.no_mic))
+    return _voice_errors(lambda: listen(no_mic=args.no_mic, ui=_ui_options(args)))
+
+
+def cmd_ui(args: argparse.Namespace) -> int:
+    from romeo.voice.app import dashboard_only
+
+    return _voice_errors(lambda: dashboard_only(_ui_options(args)))
+
+
+def _add_ui_flags(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--ui-host", default="127.0.0.1",
+                   help="dashboard address; 0.0.0.0 lets the iPhone open it (needs ROMEO_BRIDGE_TOKEN)")
+    p.add_argument("--ui-port", type=int, default=8767)
+    p.add_argument("--no-browser", action="store_true", help="do not open the dashboard automatically")
 
 
 def cmd_voice(args: argparse.Namespace) -> int:
@@ -127,8 +148,14 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("-n", type=int, default=20)
     p.set_defaults(fn=cmd_audit)
     p = sub.add_parser("listen", help='always listen for "Hey Romeo" (+ Siri /ask endpoint)')
-    p.add_argument("--no-mic", action="store_true", help="only serve the Siri endpoint")
+    p.add_argument("--no-mic", action="store_true", help="only serve Siri and the dashboard")
+    p.add_argument("--no-ui", action="store_true", help="no web dashboard")
+    p.add_argument("--no-overlay", action="store_true", help="no floating bubble on screen")
+    _add_ui_flags(p)
     p.set_defaults(fn=cmd_listen)
+    p = sub.add_parser("ui", help="open the web dashboard only (type commands, see history)")
+    _add_ui_flags(p)
+    p.set_defaults(fn=cmd_ui)
     p = sub.add_parser("voice", help="voice setup: enroll your voice or test the wake word")
     p.add_argument("action", choices=["enroll", "test"])
     p.add_argument("--count", type=int, default=5, help="enroll: number of recordings")
