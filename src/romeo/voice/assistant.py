@@ -48,6 +48,7 @@ class Hooks:
     chime: Callable[[str], None] = lambda kind: None  # "wake" | "done" | "reject"
     flush: Callable[[], None] = lambda: None  # drop mic audio captured while busy
     log: Callable[[str], None] = print
+    event: Callable[[str, dict], None] = lambda kind, data: None  # UI updates
 
 
 def _norm(text: str) -> str:
@@ -100,6 +101,7 @@ class VoiceAssistant:
         if not any(self._recent_speech):
             audit.record("voice", "wake", {"score": round(event.score, 3)}, "reject",
                          note="no voice activity")
+            self.hooks.event("wake_rejected", {"reason": "no voice activity"})
             return
         clip = self.ring.last(1.6)
         ok, why = self._confirm(clip)
@@ -107,9 +109,11 @@ class VoiceAssistant:
                      "accept" if ok else "reject", note=why)
         if not ok:
             self.hooks.log(f"✗ wake rejected ({why})")
+            self.hooks.event("wake_rejected", {"reason": why})
             self.hooks.chime("reject")
             return
         self.hooks.log(f"● awake (score {event.score:.2f}{', ' + why if why else ''})")
+        self.hooks.event("state", {"state": "awake"})
         self.hooks.chime("wake")
         self._begin(State.LISTENING)
 
@@ -128,6 +132,11 @@ class VoiceAssistant:
         return True, ", ".join(notes)
 
     def _begin(self, state: State) -> None:
+        if state is not self.state or state is not State.IDLE:
+            ui_state = state.value
+            if state is State.IDLE and self.runner.kill_switch.engaged():
+                ui_state = "stopped"
+            self.hooks.event("state", {"state": ui_state})
         self.state = state
         self._command = []
         self._heard_speech = False
@@ -164,6 +173,7 @@ class VoiceAssistant:
         reply = self.runner.handle(text, source="voice")
         self.replies.append(reply)
         self.hooks.log(f"🤖 {reply}")
+        self.hooks.event("state", {"state": "speaking"})
         self.hooks.speak(reply)
         self.hooks.chime("done")
         self.hooks.flush()
