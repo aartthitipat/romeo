@@ -28,10 +28,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
+      # setup-uv creates and activates .venv when python-version is set
       - name: Install
-        run: |
-          uv venv
-          uv pip install -e ".[dev,voice]"
+        run: uv pip install -e ".[dev,voice]"
 
       - name: Test
         run: uv run --no-sync pytest -q
