@@ -1,0 +1,41 @@
+[project]
+name = "romeo"
+version = "0.1.0"
+description = "AI ที่คุมคอม Windows และ iPhone ได้ — ต่อยอดจาก OpenJarvis ผ่าน MCP"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+dependencies = [
+    "mcp>=1.2,<2",
+    "httpx>=0.27",
+    "pillow>=10",
+    # Windows control (installed only on Windows)
+    "pywinauto>=0.6.8; sys_platform == 'win32'",
+    "pyautogui>=0.9.54; sys_platform == 'win32'",
+    "mss>=9; sys_platform == 'win32'",
+    "pyperclip>=1.8; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+iphone = ["pymobiledevice3>=4"]
+jarvis = ["openjarvis @ git+https://github.com/open-jarvis/OpenJarvis"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+romeo = "romeo.cli:main"
+romeo-windows = "romeo.windows_mcp.server:main"
+romeo-iphone = "romeo.iphone_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/romeo"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

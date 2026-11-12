@@ -1,0 +1,33 @@
+# Romeo preset for OpenJarvis — merge into ~/.openjarvis/config.toml
+# (or copy it over: `copy configs\config.toml %USERPROFILE%\.openjarvis\config.toml`)
+# API keys go in ~/.openjarvis/credentials.toml or environment variables — never here.
+
+[engine]
+default = "ollama"            # local engine for simple requests
+
+[engine.ollama]
+host = "http://localhost:11434"
+
+[intelligence]
+default_model = "qwen3:8b"    # local model (ollama pull qwen3:8b)
+# For screen/phone control use the cloud engine with Claude (needs ANTHROPIC_API_KEY):
+#   jarvis ask --engine cloud --model claude-sonnet-5-5 "..."
+# `romeo route "<request>"` tells you which one a request should go to.
+
+[agent]
+default_agent = "native_react"   # uses the Romeo operator prompt installed by `romeo setup`
+max_turns = 30                   # GUI tasks need many observe/act/verify steps
+
+[tools]
+enabled = ["file_read", "web_search"]
+
+[tools.mcp]
+enabled = true
+# Path written by `romeo setup` (absolute paths to the installed commands):
+servers = "~/.romeo/mcp_servers.json"
+
+# Command Romeo from your phone (see OpenJarvis channel docs):
+# [channel]
+# default_agent = "native_react"
+# [channel.telegram]
+# bot_token = ""  # or TELEGRAM_BOT_TOKEN env var
