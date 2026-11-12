@@ -82,3 +82,32 @@ git clone https://github.com/appium/WebDriverAgent && cd WebDriverAgent
 ```powershell
 jarvis ask --engine cloud --model claude-sonnet-5-5 "เปิดแอปการตั้งค่าบนไอโฟนแล้วบอกว่าเวอร์ชัน iOS อะไร"
 ```
+
+---
+
+## "Hey Siri, Romeo" — สั่งงานด้วยเสียงจาก iPhone
+
+iOS ไม่อนุญาตให้แอปอื่นฟังไมค์อยู่เบื้องหลังตลอดเวลา จึงให้ **Siri เป็นคนฟังคำปลุก** แทน
+แล้วส่งคำพูดของเรามาให้ Romeo บนคอม
+
+### 1) เปิด endpoint บนคอม
+ใช้ `ROMEO_BRIDGE_TOKEN` ตัวเดียวกับ Shortcuts bridge แล้วรัน:
+```powershell
+romeo listen
+```
+ถ้าต้องการรับคำสั่งจาก Siri อย่างเดียว ไม่ฟังไมค์คอม:
+```powershell
+romeo listen --no-mic
+```
+endpoint ฟังที่พอร์ต `8766` (เปลี่ยนด้วย `ROMEO_ASK_PORT`) — อนุญาตใน Firewall เฉพาะเครือข่าย Private หรือใช้ Tailscale
+
+### 2) สร้าง Shortcut ชื่อ **Romeo** บน iPhone
+1. **Dictate Text** — Language: Thai, Stop Listening: After Pause
+2. **Get Contents of URL** `http://<IP คอม>:8766/ask`
+   · Method **POST** · Header `X-Romeo-Token` = token · Request Body **JSON**: `text` = *Dictated Text*
+3. **Get Dictionary Value** `reply` จาก *Contents of URL*
+4. **Speak Text** *Dictionary Value* (เลือกเสียงภาษาไทย)
+
+### 3) ใช้งาน
+พูด **"Hey Siri, Romeo"** → พูดคำสั่ง เช่น "เปิด Spotify บนคอมแล้วเล่นเพลงโปรด" → iPhone อ่านผลลัพธ์ให้ฟัง
+พูด **"Hey Siri, Romeo"** → **"หยุด"** เพื่อสั่งหยุดฉุกเฉินทุกอย่างทันที

@@ -90,6 +90,30 @@ def cmd_audit(args: argparse.Namespace) -> int:
     return 0
 
 
+def _voice_errors(fn):
+    try:
+        return fn()
+    except ImportError as exc:
+        print(f"✗ missing voice dependency ({exc.name}). Install: uv pip install -e \".[voice]\"")
+    except (OSError, RuntimeError, FileNotFoundError) as exc:
+        print(f"✗ {exc}")
+    return 1
+
+
+def cmd_listen(args: argparse.Namespace) -> int:
+    from romeo.voice.app import listen
+
+    return _voice_errors(lambda: listen(no_mic=args.no_mic))
+
+
+def cmd_voice(args: argparse.Namespace) -> int:
+    from romeo.voice import app
+
+    if args.action == "enroll":
+        return _voice_errors(lambda: app.enroll(args.count))
+    return _voice_errors(lambda: app.live_test(args.seconds))
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="romeo")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -102,6 +126,14 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("audit", help="show recent audit log entries")
     p.add_argument("-n", type=int, default=20)
     p.set_defaults(fn=cmd_audit)
+    p = sub.add_parser("listen", help='always listen for "Hey Romeo" (+ Siri /ask endpoint)')
+    p.add_argument("--no-mic", action="store_true", help="only serve the Siri endpoint")
+    p.set_defaults(fn=cmd_listen)
+    p = sub.add_parser("voice", help="voice setup: enroll your voice or test the wake word")
+    p.add_argument("action", choices=["enroll", "test"])
+    p.add_argument("--count", type=int, default=5, help="enroll: number of recordings")
+    p.add_argument("--seconds", type=float, default=60.0, help="test: how long to listen")
+    p.set_defaults(fn=cmd_voice)
     args = parser.parse_args(argv)
     return args.fn(args)
 

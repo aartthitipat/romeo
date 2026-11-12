@@ -26,7 +26,10 @@ Romeo ต่อยอดจาก [OpenJarvis](https://github.com/open-jarvis/Op
 | M4 iPhone ระดับ A — Shortcuts bridge | ✅ ฝั่งเซิร์ฟเวอร์ — ต้องสร้าง Shortcut บน iPhone ([คู่มือ](shortcuts/README.md)) |
 | M5 iPhone ระดับ B — WebDriverAgent | ✅ client — ต้องติดตั้ง WDA ลง iPhone |
 | M6 สั่งผ่าน LINE/Telegram/เสียง | ใช้ channels ของ OpenJarvis (ตั้งค่าใน config) |
-| M7 รันเป็น service + auto-routing ในตัว agent | ยังไม่ทำ |
+| V1–V4 ปลุกด้วยเสียง "Hey Romeo" (VAD → wake word 2 ด่าน → whisper ยืนยัน → เสียงเจ้าของ) + "Hey Siri, Romeo" | ✅ เขียนแล้ว — ต้องทดสอบกับไมค์จริง ([แผน](docs/VOICE_PLAN.md)) |
+| ฝึกโมเดล `hey_romeo` | ต้องทำเอง ([คู่มือ](models/README.md)) — ระหว่างนี้ใช้ "Hey Jarvis" |
+| auto-routing (เลือก Ollama/Claude ให้เอง) | ✅ สำหรับคำสั่งเสียงและ Siri |
+| M7 รันเป็น service ตอนเปิดเครื่อง + ไอคอน tray | ยังไม่ทำ |
 
 ## ติดตั้ง (บน Windows)
 
@@ -63,6 +66,42 @@ Romeo ต่อยอดจาก [OpenJarvis](https://github.com/open-jarvis/Op
 
 iPhone: ดู [shortcuts/README.md](shortcuts/README.md)
 
+## สั่งด้วยเสียง — "Hey Romeo"
+
+ออกแบบตาม "Hey Siri" ของ Apple: ฟังตลอดด้วยด่านเล็กที่ถูก แล้วยืนยันซ้ำด้วยด่านที่แม่นกว่า
+
+```
+ไมค์ → ด่าน 0 VAD (มีเสียงคนไหม) → ด่าน 1 openWakeWord (คะแนน ≥ 0.5)
+     → ด่าน 2 ยืนยันหลายเฟรม (≥ 0.7) + whisper ต้องได้ยินคำว่า "romeo"
+     → ด่าน 3 ต้องเป็นเสียงเจ้าของ (ถ้าลงทะเบียนเสียงแล้ว)
+     → ติ๊ง! → พูดคำสั่งต่อได้เลย → Romeo ทำงาน → พูดตอบ → ฟังคำสั่งต่อ 6 วิโดยไม่ต้องปลุกซ้ำ
+```
+
+1. ติดตั้งส่วนเสียง และ STT ภาษาไทย:
+   ```powershell
+   uv pip install -e ".[voice,speaker]" faster-whisper
+   ```
+2. ลงทะเบียนเสียงตัวเอง (พูดคำปลุก 5 ครั้ง) — ให้คนอื่นหรือเสียงจาก TV ปลุกไม่ได้:
+   ```powershell
+   romeo voice enroll
+   ```
+3. ดูคะแนนคำปลุกแบบสด:
+   ```powershell
+   romeo voice test
+   ```
+4. เริ่มฟัง:
+   ```powershell
+   romeo listen
+   ```
+5. ให้เริ่มเองตอน login:
+   ```powershell
+   schtasks /create /tn Romeo /sc onlogon /tr "romeo listen" /rl limited
+   ```
+
+- ยังไม่มีโมเดล `hey_romeo` ให้พูด **"Hey Jarvis"** ไปก่อน — วิธีฝึกอยู่ที่ [models/README.md](models/README.md)
+- พูด **"Hey Romeo หยุด"** = หยุดฉุกเฉิน (ไม่ผ่าน AI) · "หยุดเพลง" ยังเป็นคำสั่งปกติ
+- งานเสี่ยงยังต้องกดอนุญาตบนจอเสมอ เสียงอย่างเดียวไม่พอ
+
 ## ความปลอดภัย
 
 Romeo คุมเครื่องได้จริง จึงมีด่านกั้นทุก action (`src/romeo/common/`):
@@ -82,6 +121,8 @@ Romeo คุมเครื่องได้จริง จึงมีด่�
 | `romeo route "<คำขอ>"` | ดูว่าคำขอนี้ควรใช้ local model หรือ Claude |
 | `romeo stop` / `romeo resume` | เปิด/ปิด kill switch |
 | `romeo audit -n 50` | ดู log ล่าสุด |
+| `romeo listen [--no-mic]` | ฟัง "Hey Romeo" + เปิด endpoint ให้ Siri |
+| `romeo voice enroll` / `romeo voice test` | ลงทะเบียนเสียงเจ้าของ / ดูคะแนนคำปลุกสด |
 | `romeo-windows` / `romeo-iphone` | MCP server (OpenJarvis เรียกเอง; ใช้กับ Claude Desktop ได้ด้วย) |
 
 ## พัฒนา
