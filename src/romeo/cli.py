@@ -109,9 +109,53 @@ def _ui_options(args: argparse.Namespace):
 
 
 def cmd_listen(args: argparse.Namespace) -> int:
+    from romeo.autostart import SingleInstance, redirect_output
     from romeo.voice.app import listen
 
-    return _voice_errors(lambda: listen(no_mic=args.no_mic, ui=_ui_options(args)))
+    if args.background:  # started by Windows at sign-in: no console, no browser tab
+        args.no_browser = True
+        redirect_output()
+        print(f"--- romeo listen --background (pid {os.getpid()}) ---")
+    lock = SingleInstance()
+    if not lock.acquire():
+        print("Romeo is already running (started at sign-in?). "
+              "Open the dashboard: http://127.0.0.1:%d/" % args.ui_port)
+        return 0 if args.background else 1
+    try:
+        return _voice_errors(lambda: listen(no_mic=args.no_mic, ui=_ui_options(args),
+                                            background=args.background))
+    finally:
+        lock.release()
+
+
+def cmd_autostart(args: argparse.Namespace) -> int:
+    from romeo.autostart import Autostart, log_file
+
+    try:
+        auto = Autostart()
+    except RuntimeError as exc:
+        print(f"✗ {exc}")
+        return 1
+    extra = tuple(a for a in (args.listen_args or ()) if a != "--")
+    if args.action == "enable":
+        command = auto.enable(extra)
+        print("✓ Romeo will start when you sign in to Windows")
+        print(f"  command: {command}")
+        print(f"  log:     {log_file()}")
+        print("  turn off: romeo autostart disable  (or Task Manager ▸ Startup apps)")
+        return 0
+    if args.action == "disable":
+        print("✓ autostart removed" if auto.disable() else "autostart was not enabled")
+        return 0
+    st = auto.status()
+    if not st.enabled:
+        print("autostart: off  — enable with `romeo autostart enable`")
+    else:
+        print("autostart: on" + ("" if st.current else
+              "  (points at a different Python — run `romeo autostart enable` again to update)"))
+        print(f"  command: {st.command}")
+        print(f"  log:     {log_file()}")
+    return 0
 
 
 def cmd_ui(args: argparse.Namespace) -> int:
@@ -151,8 +195,15 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--no-mic", action="store_true", help="only serve Siri and the dashboard")
     p.add_argument("--no-ui", action="store_true", help="no web dashboard")
     p.add_argument("--no-overlay", action="store_true", help="no floating bubble on screen")
+    p.add_argument("--background", action="store_true",
+                   help="sign-in mode: log to ~/.romeo/logs/romeo.log, no browser, wait for the mic")
     _add_ui_flags(p)
     p.set_defaults(fn=cmd_listen)
+    p = sub.add_parser("autostart", help="start Romeo automatically when you sign in to Windows")
+    p.add_argument("action", choices=["enable", "disable", "status"])
+    p.add_argument("listen_args", nargs=argparse.REMAINDER,
+                   help="extra `romeo listen` flags, e.g. -- --ui-host 0.0.0.0")
+    p.set_defaults(fn=cmd_autostart)
     p = sub.add_parser("ui", help="open the web dashboard only (type commands, see history)")
     _add_ui_flags(p)
     p.set_defaults(fn=cmd_ui)

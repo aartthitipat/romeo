@@ -33,7 +33,8 @@ Romeo ต่อยอดจาก [OpenJarvis](https://github.com/open-jarvis/Op
 | auto-routing (เลือก Ollama/Claude ให้เอง) | ✅ สำหรับคำสั่งเสียงและ Siri |
 | หน้าเว็บควบคุม + หน้าต่างลอยแบบ Siri | ✅ (หน้าต่างลอยยังไม่ได้ลองบน Windows จริง) |
 | CI: pytest บน Ubuntu + Windows | ✅ |
-| M7 รันเป็น service ตอนเปิดเครื่อง + ไอคอน tray | ยังไม่ทำ |
+| เปิดเองตอนเปิดเครื่อง (`romeo autostart`) | ✅ |
+| ไอคอนที่ taskbar (tray) | ยังไม่ทำ |
 
 ## ติดตั้ง (บน Windows)
 
@@ -97,10 +98,7 @@ iPhone: ดู [shortcuts/README.md](shortcuts/README.md)
    ```powershell
    romeo listen
    ```
-5. ให้เริ่มเองตอน login:
-   ```powershell
-   schtasks /create /tn Romeo /sc onlogon /tr "romeo listen" /rl limited
-   ```
+5. ให้ Romeo เปิดเองทุกครั้งที่เข้าสู่ระบบ Windows — ดูหัวข้อ [เปิดเองตอนเปิดเครื่อง](#เปิดเองตอนเปิดเครื่อง)
 
 - ยังไม่มีโมเดล `hey_romeo` ให้พูด **"Hey Jarvis"** ไปก่อน — วิธีฝึกอยู่ที่ [models/README.md](models/README.md)
 - พูด **"Hey Romeo หยุด"** = หยุดฉุกเฉิน (ไม่ผ่าน AI) · "หยุดเพลง" ยังเป็นคำสั่งปกติ
@@ -125,6 +123,33 @@ romeo listen --ui-host 0.0.0.0
 ```
 ปุ่ม "ให้ทำงานต่อ" หลังหยุดฉุกเฉินกดได้จากคอมเท่านั้น · ปิดหน้าเว็บ `--no-ui` · ปิดหน้าต่างลอย `--no-overlay`
 
+## เปิดเองตอนเปิดเครื่อง
+
+```powershell
+romeo autostart enable
+```
+ตั้งครั้งเดียว ทุกครั้งที่เข้าสู่ระบบ Windows Romeo จะเปิดเองแบบไม่มีหน้าต่างดำ:
+ฟัง "Hey Romeo", เปิดหน้าเว็บที่ `http://127.0.0.1:8767` และหน้าต่างลอย
+(ไม่เปิดเบราว์เซอร์ให้เอง เปิด/บุ๊กมาร์กหน้าเว็บไว้ได้)
+
+- ไม่ต้องใช้สิทธิ์ admin — บันทึกไว้ใน Startup ของผู้ใช้ (ปิดได้จาก **Task Manager ▸ Startup apps** ด้วย)
+- ถ้าไมค์ยังไม่พร้อมตอนเพิ่งเข้าระบบ จะรอได้ถึง ~2 นาที ระหว่างนั้นหน้าเว็บกับ Siri ใช้ได้แล้ว
+- เปิดซ้ำไม่ได้: ถ้าสั่ง `romeo listen` ตอนที่เปิดอยู่แล้ว จะแจ้งว่าเปิดอยู่แล้ว
+- log อยู่ที่ `%USERPROFILE%\.romeo\logs\romeo.log`
+- ส่งตัวเลือกของ `romeo listen` ต่อได้ เช่น ให้ iPhone เปิดหน้าเว็บได้:
+  ```powershell
+  romeo autostart enable -- --ui-host 0.0.0.0
+  ```
+- ดูสถานะ / ปิด:
+  ```powershell
+  romeo autostart status
+  ```
+  ```powershell
+  romeo autostart disable
+  ```
+- ย้ายโฟลเดอร์หรือสร้าง venv ใหม่ ให้สั่ง `romeo autostart enable` อีกครั้ง (`status` จะเตือนถ้าชี้ไปที่ Python ตัวเก่า)
+- อย่าลืมให้ Ollama เปิดเองตอนเข้าระบบด้วย (ตัวติดตั้ง Ollama ตั้งให้อยู่แล้ว)
+
 ## ความปลอดภัย
 
 Romeo คุมเครื่องได้จริง จึงมีด่านกั้นทุก action (`src/romeo/common/`):
@@ -146,6 +171,7 @@ Romeo คุมเครื่องได้จริง จึงมีด่�
 | `romeo audit -n 50` | ดู log ล่าสุด |
 | `romeo listen [--no-mic]` | ฟัง "Hey Romeo" + หน้าเว็บ + หน้าต่างลอย + endpoint ให้ Siri |
 | `romeo ui` | เปิดหน้าเว็บควบคุมอย่างเดียว |
+| `romeo autostart enable/disable/status` | ให้ Romeo เปิดเองตอนเข้าสู่ระบบ Windows |
 | `romeo voice enroll` / `romeo voice test` | ลงทะเบียนเสียงเจ้าของ / ดูคะแนนคำปลุกสด |
 | `romeo-windows` / `romeo-iphone` | MCP server (OpenJarvis เรียกเอง; ใช้กับ Claude Desktop ได้ด้วย) |
 

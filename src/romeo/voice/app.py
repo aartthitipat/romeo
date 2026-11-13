@@ -6,6 +6,7 @@ import os
 import signal
 import sys
 import threading
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -143,7 +144,23 @@ def dashboard_only(ui: UiOptions) -> int:
     return 0
 
 
-def listen(no_mic: bool = False, ui: Optional[UiOptions] = None) -> int:
+def open_mic(retries: int = 0, delay_s: float = 5.0, sleep=time.sleep,
+             factory=audio.MicStream):
+    """Open the microphone, retrying while Windows is still bringing audio up
+    (right after sign-in the device is often not ready yet)."""
+    for attempt in range(retries + 1):
+        mic = factory()
+        try:
+            return mic.__enter__()
+        except Exception as exc:
+            if attempt == retries:
+                raise
+            print(f"… microphone not ready ({exc}); retrying in {delay_s:.0f}s")
+            sleep(delay_s)
+    raise AssertionError("unreachable")
+
+
+def listen(no_mic: bool = False, ui: Optional[UiOptions] = None, background: bool = False) -> int:
     from romeo.ui.events import default_hub
     from romeo.voice.runner import CommandRunner
 
@@ -152,14 +169,26 @@ def listen(no_mic: bool = False, ui: Optional[UiOptions] = None) -> int:
     runner = CommandRunner(on_event=hub.emit)
     servers = _start_servers(hub, runner, ui)
 
-    if no_mic:
+    mic = None
+    if not no_mic:
+        try:
+            # At sign-in give the audio device up to ~2 minutes to appear.
+            mic = open_mic(retries=24 if background else 0)
+        except Exception as exc:
+            if not background:
+                raise
+            msg = f"microphone unavailable ({exc}) — dashboard and Siri still work"
+            print(f"✗ {msg}")
+            hub.publish("error", {"text": msg})
+
+    if mic is None:
         if not servers:
-            print("nothing to do: --no-mic without ROMEO_BRIDGE_TOKEN or dashboard")
+            print("nothing to do: no microphone and no dashboard/Siri endpoint")
             return 1
         print("serving Siri/dashboard requests only… Ctrl+C to quit")
         _wait_forever()
     else:
-        with audio.MicStream() as mic:
+        try:
             assistant, model = build_assistant(mic, runner, hub.emit)
             word = assistant.keywords[0]
             print(f"✓ wake model: {model}  — say “Hey {word.title()}”  (Ctrl+C to quit)")
@@ -167,6 +196,8 @@ def listen(no_mic: bool = False, ui: Optional[UiOptions] = None) -> int:
                 print("ℹ voice not enrolled — anyone can wake Romeo. Run `romeo voice enroll`.")
             hub.publish("state", {"state": "stopped" if runner.kill_switch.engaged() else "idle"})
             _run_with_overlay(assistant, mic, hub, ui)
+        finally:
+            mic.__exit__(None, None, None)
 
     for srv in servers:
         srv.stop()
