@@ -1,0 +1,4 @@
+[
+  {"name": "romeo-windows", "command": "romeo-windows", "args": []},
+  {"name": "romeo-iphone", "command": "romeo-iphone", "args": []}
+]

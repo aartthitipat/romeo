@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<title>Romeo</title>
+<style>
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --ink: #14161a; --muted: #6b7280; --line: #e5e7eb;
+  --idle: #9ca3af; --listen: #2f80ed; --think: #8b5cf6; --speak: #10b981; --stop: #e5484d;
+  --me: #2f80ed; --me-ink: #fff; --bot: #eef0f3; --shadow: 0 1px 2px rgb(0 0 0 / .06), 0 8px 24px rgb(0 0 0 / .06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1115; --panel: #171a21; --ink: #e8eaee; --muted: #9aa1ad; --line: #262b35;
+    --bot: #222733; --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 8px 24px rgb(0 0 0 / .3);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 15px/1.5 "Segoe UI", "Leelawadee UI", "Sukhumvit Set", "Noto Sans Thai", system-ui, sans-serif;
+  display: flex; flex-direction: column;
+}
+header {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+}
+header h1 { font-size: 18px; margin: 0; letter-spacing: .2px; }
+.conn { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); }
+.conn.on { background: var(--speak); }
+.pills { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--line); font-size: 13px; color: var(--muted); white-space: nowrap;
+}
+.pill i { width: 7px; height: 7px; border-radius: 50%; background: var(--idle); }
+.pill.ok i { background: var(--speak); }
+
+main {
+  flex: 1; min-height: 0; display: grid; gap: 16px; padding: 16px;
+  grid-template-columns: minmax(260px, 340px) 1fr; max-width: 1200px; width: 100%; margin: 0 auto;
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+
+/* ---------------- status column ---------------- */
+.status { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 20px; }
+.orb-wrap { width: 170px; height: 170px; display: grid; place-items: center; }
+.orb {
+  --c: var(--idle);
+  width: 120px; height: 120px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--c) 35%, white), var(--c) 70%);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent);
+  transition: background .3s, transform .3s;
+}
+[data-state="awake"] .orb, [data-state="listening"] .orb, [data-state="follow_up"] .orb { --c: var(--listen); animation: pulse 1.2s infinite; }
+[data-state="thinking"] .orb { --c: var(--think); animation: breathe 1.4s ease-in-out infinite; }
+[data-state="speaking"] .orb { --c: var(--speak); animation: pulse .8s infinite; }
+[data-state="stopped"] .orb { --c: var(--stop); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 50%, transparent); }
+                   100% { box-shadow: 0 0 0 26px transparent; } }
+@keyframes breathe { 50% { transform: scale(.88); } }
+@media (prefers-reduced-motion: reduce) { .orb { animation: none !important; } }
+.state-label { font-size: 20px; font-weight: 600; }
+.hint { color: var(--muted); font-size: 13px; text-align: center; min-height: 1.5em; }
+.btn {
+  border: 0; border-radius: 12px; padding: 12px 16px; font: inherit; font-weight: 600; cursor: pointer;
+  width: 100%; transition: filter .15s;
+}
+.btn:hover { filter: brightness(1.07); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn-stop { background: var(--stop); color: #fff; font-size: 16px; }
+.btn-resume { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.hidden { display: none !important; }
+
+/* ---------------- right column ---------------- */
+.work { display: flex; flex-direction: column; min-height: 0; }
+.tabs { display: flex; gap: 4px; padding: 8px 8px 0; border-bottom: 1px solid var(--line); }
+.tab {
+  border: 0; background: none; color: var(--muted); font: inherit; padding: 8px 12px; cursor: pointer;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab[aria-selected="true"] { color: var(--ink); border-color: var(--listen); font-weight: 600; }
+.pane { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; }
+.chat { display: flex; flex-direction: column; gap: 10px; }
+.empty { color: var(--muted); text-align: center; margin: 40px 0; }
+.msg { max-width: 80%; padding: 9px 13px; border-radius: 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: 4px; }
+.msg.bot { align-self: flex-start; background: var(--bot); border-bottom-left-radius: 4px; }
+.msg .src { display: block; font-size: 11px; opacity: .7; margin-bottom: 2px; }
+.sys { align-self: center; color: var(--muted); font-size: 12px; }
+form.ask { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--line); }
+form.ask input {
+  flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  border-radius: 12px; padding: 10px 12px; font: inherit;
+}
+form.ask button { width: auto; background: var(--listen); color: #fff; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 500; }
+td.params { color: var(--muted); overflow-wrap: anywhere; }
+.badge { padding: 1px 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }
+.badge.allow, .badge.accept, .badge.user_approved { background: color-mix(in srgb, var(--speak) 18%, transparent); color: var(--speak); }
+.badge.deny, .badge.user_denied, .badge.reject, .badge.kill_switch, .badge.error, .badge.cloud_failed { background: color-mix(in srgb, var(--stop) 18%, transparent); color: var(--stop); }
+
+@media (max-width: 760px) {
+  main { grid-template-columns: 1fr; padding: 12px 16px; }
+  .status { flex-direction: row; flex-wrap: wrap; padding: 16px; gap: 12px; }
+  .orb-wrap { width: 76px; height: 76px; }
+  .orb { width: 56px; height: 56px; }
+  .status .text { flex: 1; min-width: 0; }
+  .state-label { font-size: 17px; }
+  .hint { text-align: left; }
+  .status .actions { width: 100%; display: flex; gap: 8px; }
+  .work { min-height: 60vh; }
+  .msg { max-width: 90%; }
+  td.when { white-space: nowrap; }
+  th.params, td.params { display: none; }
+}
+</style>
+</head>
+<body data-state="idle">
+<header>
+  <span class="conn" id="conn" title="การเชื่อมต่อ"></span>
+  <h1>Romeo</h1>
+  <div class="pills">
+    <span class="pill" id="dev-windows"><i></i>Windows</span>
+    <span class="pill" id="dev-iphone"><i></i>iPhone</span>
+  </div>
+</header>
+
+<main>
+  <section class="card status" aria-live="polite">
+    <div class="orb-wrap"><div class="orb"></div></div>
+    <div class="text">
+      <div class="state-label" id="state-label">รอคำปลุก</div>
+      <div class="hint" id="hint"></div>
+    </div>
+    <div class="actions" style="width:100%">
+      <button class="btn btn-stop" id="stop">หยุดฉุกเฉิน</button>
+      <button class="btn btn-resume hidden" id="resume">ให้ทำงานต่อ</button>
+    </div>
+  </section>
+
+  <section class="card work">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-pane="chat">สนทนา</button>
+      <button class="tab" role="tab" aria-selected="false" data-pane="audit">ประวัติ action</button>
+    </div>
+    <div class="pane" id="pane-chat"><div class="chat" id="chat"><p class="empty" id="empty">พูด “Hey Romeo” หรือพิมพ์คำสั่งด้านล่าง</p></div></div>
+    <div class="pane hidden" id="pane-audit">
+      <table>
+        <thead><tr><th>เวลา</th><th>อุปกรณ์</th><th>action</th><th>ผล</th><th class="params">รายละเอียด</th></tr></thead>
+        <tbody id="audit"></tbody>
+      </table>
+    </div>
+    <form class="ask" id="ask">
+      <input id="ask-input" autocomplete="off" placeholder="พิมพ์คำสั่ง เช่น เปิด Notepad แล้วพิมพ์ว่า สวัสดี">
+      <button class="btn" type="submit">ส่ง</button>
+    </form>
+  </section>
+</main>
+
+<script>
+(() => {
+  const LABELS = {
+    idle: "รอคำปลุก", awake: "ได้ยินแล้ว", listening: "กำลังฟัง…", thinking: "กำลังคิด…",
+    speaking: "กำลังตอบ", follow_up: "พูดต่อได้เลย", stopped: "หยุดฉุกเฉินอยู่",
+  };
+  const SOURCES = { voice: "เสียง", siri: "Siri", web: "หน้าเว็บ" };
+  const $ = (id) => document.getElementById(id);
+
+  // Token: taken once from ?token= then kept for this browser.
+  const params = new URLSearchParams(location.search);
+  let token = "";
+  try {
+    if (params.get("token")) { localStorage.setItem("romeoToken", params.get("token")); history.replaceState(null, "", "/"); }
+    token = localStorage.getItem("romeoToken") || "";
+  } catch (_) { token = params.get("token") || ""; }
+
+  const api = async (path, opts = {}) => {
+    const res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-Romeo-Token": token, ...(opts.headers || {}) } });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || res.statusText);
+    return res.json();
+  };
+
+  let local = false, stopped = false, lastId = 0, wakeWord = "Romeo";
+  const seen = new Set();
+
+  function setState(state) {
+    stopped = state === "stopped";
+    document.body.dataset.state = state;
+    $("state-label").textContent = LABELS[state] || state;
+    $("hint").textContent = stopped
+      ? (local ? "กด “ให้ทำงานต่อ” หรือพิมพ์ romeo resume" : "ปลดได้จากคอมเท่านั้น")
+      : state === "idle" ? `พูด “Hey ${wakeWord}” เพื่อเรียก` : "";
+    $("stop").classList.toggle("hidden", stopped);
+    $("resume").classList.toggle("hidden", !(stopped && local));
+  }
+
+  function add(kind, text, source) {
+    $("empty")?.remove();
+    const el = document.createElement("div");
+    if (kind === "sys") { el.className = "sys"; el.textContent = text; }
+    else {
+      el.className = "msg " + kind;
+      if (source) { const s = document.createElement("span"); s.className = "src"; s.textContent = SOURCES[source] || source; el.append(s); }
+      el.append(document.createTextNode(text));
+    }
+    $("chat").append(el);
+    $("pane-chat").scrollTop = $("pane-chat").scrollHeight;
+  }
+
+  function handle(ev) {
+    if (seen.has(ev.id)) return;
+    seen.add(ev.id); lastId = Math.max(lastId, ev.id);
+    if (ev.kind === "state") setState(ev.state);
+    else if (ev.kind === "heard") add("me", ev.text, ev.source);
+    else if (ev.kind === "reply") add("bot", ev.text, ev.source);
+    else if (ev.kind === "wake_rejected") add("sys", "ปลุกไม่ผ่าน: " + ev.reason);
+    else if (ev.kind === "error") add("sys", "ผิดพลาด: " + ev.text);
+  }
+
+  function connect() {
+    const es = new EventSource(`/api/events?after=${lastId}&token=${encodeURIComponent(token)}`);
+    es.onopen = () => $("conn").classList.add("on");
+    es.onmessage = (m) => handle(JSON.parse(m.data));
+    es.onerror = () => { $("conn").classList.remove("on"); };
+  }
+
+  async function init() {
+    try {
+      const s = await api("/api/state");
+      local = s.local;
+      const m = (s.wake_model || "").split(/[\\/]/).pop().replace(/\.onnx$/, "").replace(/_v?[\d.]+$/, "").replace(/^hey_/, "");
+      if (m) wakeWord = m.charAt(0).toUpperCase() + m.slice(1);
+      s.events.forEach(handle);
+      setState(s.state);
+      connect();
+      devices(); setInterval(devices, 15000);
+    } catch (e) {
+      setState("idle");
+      add("sys", e.message === "bad token" ? "ต้องเปิดลิงก์ที่มี ?token=… จากคอม" : "เชื่อมต่อ Romeo ไม่ได้: " + e.message);
+    }
+  }
+
+  async function devices() {
+    try {
+      const d = await api("/api/devices");
+      for (const k of ["windows", "iphone"]) {
+        const el = $("dev-" + k); el.classList.toggle("ok", !!d[k]?.ok); el.title = d[k]?.detail || "";
+      }
+    } catch (_) {}
+  }
+
+  async function loadAudit() {
+    try {
+      const rows = await api("/api/audit?n=100");
+      const body = $("audit"); body.replaceChildren();
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="5" class="empty">ยังไม่มีประวัติ</td></tr>'; return; }
+      for (const r of rows) {
+        const tr = document.createElement("tr");
+        const t = new Date(r.ts);
+        const cells = [
+          [t.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", second: "2-digit" }), "when"],
+          [r.device, ""], [r.action, ""], [null, ""],
+          [Object.entries(r.params || {}).map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`).join(", ") + (r.note ? ` — ${r.note}` : ""), "params"],
+        ];
+        cells.forEach(([text, cls], i) => {
+          const td = document.createElement("td"); if (cls) td.className = cls;
+          if (i === 3) { const b = document.createElement("span"); b.className = "badge " + r.verdict; b.textContent = r.verdict; td.append(b); }
+          else td.textContent = text;
+          tr.append(td);
+        });
+        body.append(tr);
+      }
+    } catch (e) { add("sys", "อ่านประวัติไม่ได้: " + e.message); }
+  }
+
+  let auditTimer = null;
+  document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach((t) => t.setAttribute("aria-selected", t === tab));
+    const pane = tab.dataset.pane;
+    $("pane-chat").classList.toggle("hidden", pane !== "chat");
+    $("pane-audit").classList.toggle("hidden", pane !== "audit");
+    clearInterval(auditTimer);
+    if (pane === "audit") { loadAudit(); auditTimer = setInterval(loadAudit, 5000); }
+  }));
+
+  $("ask").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = $("ask-input"), text = input.value.trim();
+    if (!text) return;
+    input.value = ""; input.disabled = true;
+    try { await api("/api/ask", { method: "POST", body: JSON.stringify({ text }) }); }
+    catch (err) { add("sys", "ส่งไม่สำเร็จ: " + err.message); }
+    finally { input.disabled = false; input.focus(); }
+  });
+
+  $("stop").addEventListener("click", async () => {
+    try { await api("/api/stop", { method: "POST", body: "{}" }); setState("stopped"); }
+    catch (e) { add("sys", "หยุดไม่สำเร็จ: " + e.message); }
+  });
+  $("resume").addEventListener("click", async () => {
+    try { await api("/api/resume", { method: "POST", body: "{}" }); setState("idle"); }
+    catch (e) { add("sys", "ทำงานต่อไม่สำเร็จ: " + e.message); }
+  });
+
+  init();
+})();
+</script>
+</body>
+</html>
