@@ -126,12 +126,25 @@ class SingleInstance:
         self._handle = None
 
     def acquire(self) -> bool:
+        if self._handle is not None:
+            return True
         if sys.platform == "win32":
             import ctypes
+            from ctypes import wintypes
 
-            kernel32 = ctypes.windll.kernel32
-            self._handle = kernel32.CreateMutexW(None, False, f"Local\\{self.name}")
-            return kernel32.GetLastError() != 183  # ERROR_ALREADY_EXISTS
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CreateMutexW.restype = wintypes.HANDLE
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            handle = kernel32.CreateMutexW(None, False, f"Local\\{self.name}")
+            if not handle:
+                return False
+            if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+                # We were handed the other process's mutex: close it, or our
+                # handle would keep the lock alive after that process exits.
+                kernel32.CloseHandle(handle)
+                return False
+            self._handle = handle
+            return True
         import fcntl
 
         path = romeo_home() / f"{self.name}.lock"
@@ -152,8 +165,11 @@ class SingleInstance:
             return
         if sys.platform == "win32":
             import ctypes
+            from ctypes import wintypes
 
-            ctypes.windll.kernel32.CloseHandle(self._handle)
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.CloseHandle(self._handle)
         else:
             self._handle.close()
         self._handle = None
