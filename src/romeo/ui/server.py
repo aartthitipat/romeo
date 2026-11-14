@@ -11,10 +11,12 @@ import hmac
 import json
 import os
 import queue
+import shutil
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib import resources
+from pathlib import Path
 from typing import Any, Callable, Optional
 from urllib.parse import parse_qs, urlparse
 
@@ -24,6 +26,22 @@ from romeo.voice.runner import CommandRunner
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
 MAX_BODY = 16_384
+STATIC_DIR = Path(str(resources.files("romeo.ui").joinpath("static")))
+MIME = {
+    ".js": "text/javascript; charset=utf-8", ".mjs": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8", ".wasm": "application/wasm",
+    ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml",
+    ".glb": "model/gltf-binary", ".txt": "text/plain; charset=utf-8",
+}
+
+
+def static_file(rel: str) -> Optional[Path]:
+    """Resolve /static/<rel> inside the package, refusing anything outside it."""
+    root = STATIC_DIR.resolve()
+    target = (root / rel).resolve()
+    if root not in target.parents or not target.is_file():
+        return None
+    return target
 
 
 def default_devices() -> dict[str, Any]:
@@ -65,7 +83,8 @@ def read_audit(n: int = 50) -> list[dict]:
 class DashboardServer:
     def __init__(self, hub: EventHub, runner: CommandRunner, *, host: str = "127.0.0.1",
                  port: int = 8767, token: Optional[str] = None, wake_model: str = "",
-                 devices: Callable[[], dict] = default_devices) -> None:
+                 devices: Callable[[], dict] = default_devices,
+                 model_path: Optional[Path] = None) -> None:
         self.hub, self.runner = hub, runner
         self.host, self.port = host, port
         self.remote = host not in LOOPBACK
@@ -75,6 +94,7 @@ class DashboardServer:
                              "(at least 16 characters)")
         self.wake_model = wake_model
         self.devices = devices
+        self.model_path = Path(model_path) if model_path else None
         self._server: Optional[ThreadingHTTPServer] = None
         self._html = resources.files("romeo.ui").joinpath("static/index.html").read_bytes()
 
@@ -117,6 +137,16 @@ class DashboardServer:
                 given = self.headers.get("X-Romeo-Token") or self._query().get("token", [""])[0]
                 return hmac.compare_digest(given, srv.token)
 
+            def _file(self, path: Path, content_type: str, cache: str) -> None:
+                size = path.stat().st_size
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(size))
+                self.send_header("Cache-Control", cache)
+                self.end_headers()
+                with path.open("rb") as fh:
+                    shutil.copyfileobj(fh, self.wfile, 1024 * 256)
+
             def _json(self, code: int, body: Any) -> None:
                 payload = json.dumps(body, ensure_ascii=False).encode()
                 self.send_response(code)
@@ -143,8 +173,24 @@ class DashboardServer:
                     self.end_headers()
                     self.wfile.write(srv._html)
                     return
+                if route.startswith("/static/"):  # bundled UI code: public
+                    path = static_file(route[len("/static/"):])
+                    if path is None:
+                        return self._json(404, {"error": "not found"})
+                    ctype = MIME.get(path.suffix.lower(), "application/octet-stream")
+                    return self._file(path, ctype, "max-age=3600")
                 if not self._authorized():
                     return self._json(401, {"error": "bad token"})
+                if route == "/api/model":
+                    m = srv.model_path
+                    if m is None or not m.is_file():
+                        return self._json(200, {"available": False})
+                    return self._json(200, {"available": True, "name": m.name,
+                                            "size": m.stat().st_size, "url": "/model.glb"})
+                if route == "/model.glb":
+                    if srv.model_path is None or not srv.model_path.is_file():
+                        return self._json(404, {"error": "no model"})
+                    return self._file(srv.model_path, MIME[".glb"], "no-cache")
                 if route == "/api/state":
                     return self._json(200, {**srv.state(), "local": self._is_local()})
                 if route == "/api/audit":

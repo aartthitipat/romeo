@@ -88,6 +88,7 @@ class UiOptions:
     host: str = "127.0.0.1"
     port: int = 8767
     open_browser: bool = True
+    model: Optional[str] = None  # .glb file or folder; default: the project's UI folder
 
 
 def _start_servers(hub, runner, ui: UiOptions) -> list:
@@ -108,11 +109,18 @@ def _start_servers(hub, runner, ui: UiOptions) -> list:
         print("ℹ set ROMEO_BRIDGE_TOKEN to enable 'Hey Siri, Romeo' from the iPhone")
 
     if ui.dashboard:
+        from romeo.ui.model import default_dirs, find_model
+
+        model_path = find_model(ui.model)
         dash = DashboardServer(hub, runner, host=ui.host, port=ui.port, token=token,
-                               wake_model=default_model())
+                               wake_model=default_model(), model_path=model_path)
         dash.start()
         servers.append(dash)
         print(f"✓ dashboard: {dash.url}")
+        if model_path:
+            print(f"✓ 3D character: {model_path}")
+        else:
+            print(f"ℹ no 3D character — put a .glb in {default_dirs()[0]} or use --model")
         if dash.remote:
             print(f"  iPhone: http://<this PC>:{dash.port}/?token=<ROMEO_BRIDGE_TOKEN>")
         if ui.open_browser:
@@ -136,7 +144,8 @@ def dashboard_only(ui: UiOptions) -> int:
 
     hub = default_hub()
     runner = CommandRunner(on_event=hub.emit)
-    servers = _start_servers(hub, runner, UiOptions(True, False, ui.host, ui.port, ui.open_browser))
+    servers = _start_servers(hub, runner, UiOptions(True, False, ui.host, ui.port,
+                                                    ui.open_browser, ui.model))
     print("Ctrl+C to quit")
     _wait_forever()
     for srv in servers:
