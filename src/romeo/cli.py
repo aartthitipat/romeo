@@ -105,7 +105,8 @@ def _ui_options(args: argparse.Namespace):
 
     return UiOptions(dashboard=not getattr(args, "no_ui", False),
                      overlay=False if getattr(args, "no_overlay", False) else None,
-                     host=args.ui_host, port=args.ui_port, open_browser=not args.no_browser)
+                     host=args.ui_host, port=args.ui_port, open_browser=not args.no_browser,
+                     model=args.model)
 
 
 def cmd_listen(args: argparse.Namespace) -> int:
@@ -169,6 +170,7 @@ def _add_ui_flags(p: argparse.ArgumentParser) -> None:
                    help="dashboard address; 0.0.0.0 lets the iPhone open it (needs ROMEO_BRIDGE_TOKEN)")
     p.add_argument("--ui-port", type=int, default=8767)
     p.add_argument("--no-browser", action="store_true", help="do not open the dashboard automatically")
+    p.add_argument("--model", help="3D character .glb (file or folder); default: the UI folder")
 
 
 def cmd_voice(args: argparse.Namespace) -> int:

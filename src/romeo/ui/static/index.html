@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1115">
 <title>Romeo</title>
+<script type="importmap">
+{ "imports": { "three": "/static/vendor/three/three.module.min.js",
+               "three/addons/": "/static/vendor/three/addons/" } }
+</script>
 <style>
 :root {
   --bg: #f6f7f9; --panel: #ffffff; --ink: #14161a; --muted: #6b7280; --line: #e5e7eb;
@@ -48,6 +52,25 @@ main {
 /* ---------------- status column ---------------- */
 .status { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 20px; }
 .orb-wrap { width: 170px; height: 170px; display: grid; place-items: center; }
+
+/* 3D character (replaces the orb when a .glb model is loaded) */
+.avatar-wrap { position: relative; width: 100%; height: 340px; display: none; }
+body.has-avatar .avatar-wrap { display: block; }
+body.has-avatar .orb-wrap { display: none; }
+.avatar-glow {
+  --c: var(--idle);
+  position: absolute; left: 50%; bottom: 6%; width: 78%; aspect-ratio: 1; transform: translateX(-50%);
+  border-radius: 50%; opacity: .75; transition: background .4s;
+  background: radial-gradient(circle, color-mix(in srgb, var(--c) 70%, transparent) 0%, transparent 66%);
+}
+[data-state="awake"] .avatar-glow, [data-state="listening"] .avatar-glow, [data-state="follow_up"] .avatar-glow { --c: var(--listen); animation: glow 1.2s ease-in-out infinite; }
+[data-state="thinking"] .avatar-glow { --c: var(--think); animation: glow 1.6s ease-in-out infinite; }
+[data-state="speaking"] .avatar-glow { --c: var(--speak); animation: glow .7s ease-in-out infinite; }
+[data-state="stopped"] .avatar-glow { --c: var(--stop); opacity: .7; }
+@keyframes glow { 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .avatar-glow { animation: none !important; } }
+.avatar-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.avatar-note { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; color: var(--muted); font-size: 12px; }
 .orb {
   --c: var(--idle);
   width: 120px; height: 120px; border-radius: 50%;
@@ -111,6 +134,9 @@ td.params { color: var(--muted); overflow-wrap: anywhere; }
   .status { flex-direction: row; flex-wrap: wrap; padding: 16px; gap: 12px; }
   .orb-wrap { width: 76px; height: 76px; }
   .orb { width: 56px; height: 56px; }
+  .avatar-wrap { height: 230px; }
+  body.has-avatar .status { flex-direction: column; text-align: center; }
+  body.has-avatar .hint { text-align: center; }
   .status .text { flex: 1; min-width: 0; }
   .state-label { font-size: 17px; }
   .hint { text-align: left; }
@@ -135,6 +161,7 @@ td.params { color: var(--muted); overflow-wrap: anywhere; }
 <main>
   <section class="card status" aria-live="polite">
     <div class="orb-wrap"><div class="orb"></div></div>
+    <div class="avatar-wrap" id="avatar-wrap"><div class="avatar-glow"></div><div class="avatar-note" id="avatar-note"></div></div>
     <div class="text">
       <div class="state-label" id="state-label">รอคำปลุก</div>
       <div class="hint" id="hint"></div>
@@ -187,12 +214,39 @@ td.params { color: var(--muted); overflow-wrap: anywhere; }
     return res.json();
   };
 
-  let local = false, stopped = false, lastId = 0, wakeWord = "Romeo";
+  let local = false, stopped = false, lastId = 0, wakeWord = "Romeo", avatar = null;
+
+  // Swap the orb for the 3D character when a .glb is configured (falls back to the orb).
+  async function loadAvatar(initialState) {
+    const note = $("avatar-note");
+    try {
+      const m = await api("/api/model").catch(() => ({ available: false }));
+      if (!m.available) return; // no model configured: keep the orb
+      const { startAvatar } = await import("/static/avatar.js");
+      document.body.classList.add("has-avatar");
+      avatar = await startAvatar({
+        container: $("avatar-wrap"), token,
+        onStatus: (text) => { note.textContent = text; },
+      });
+      if (!avatar) {
+        const reason = note.textContent;
+        document.body.classList.remove("has-avatar");
+        if (reason) add("sys", reason);
+        return;
+      }
+      avatar.setState(document.body.dataset.state || initialState);
+      window.romeoAvatar = avatar.info;
+    } catch (e) {
+      document.body.classList.remove("has-avatar");
+      add("sys", "แสดงตัวละคร 3D ไม่ได้: " + e.message);
+    }
+  }
   const seen = new Set();
 
   function setState(state) {
     stopped = state === "stopped";
     document.body.dataset.state = state;
+    if (avatar) avatar.setState(state);
     $("state-label").textContent = LABELS[state] || state;
     $("hint").textContent = stopped
       ? (local ? "กด “ให้ทำงานต่อ” หรือพิมพ์ romeo resume" : "ปลดได้จากคอมเท่านั้น")
@@ -240,6 +294,7 @@ td.params { color: var(--muted); overflow-wrap: anywhere; }
       s.events.forEach(handle);
       setState(s.state);
       connect();
+      loadAvatar(s.state);
       devices(); setInterval(devices, 15000);
     } catch (e) {
       setState("idle");
